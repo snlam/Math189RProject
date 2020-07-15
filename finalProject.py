@@ -10,6 +10,7 @@ wordDim = 300    # all vector representations of words in spacy vocabulary are o
 # for mathy operations
 import math 
 import numpy as np
+from scipy.spatial import distance
 
 # required to open dataset (gzip) and grab each data point (json) 
 import gzip, json
@@ -139,12 +140,15 @@ if __name__ == '__main__':
 
     print('\n\n==> Commencing K-clustering algorithm...')
 
-    # calculating vector with largest norm and its norm
+
+    # calculating vector with largest norm and its associated norm
+    #print("this is the largest coordinate in the largest vector:", max(largestVector) )
     largestVector, largestNorm = maxNorm(all_lineVectors)
+    
         
     # number of clusters
     K = 3
-    print('\n**INITIALIZING K =', K, 'CLUSTERS**')
+    print('\n\n**INITIALIZING K =', K, 'CLUSTERS**\n\n')
 
     # initializing the "list" (array) of all the labels (clusters) corresponding to each vector (poetry lines)
     listOfClusterLabels = np.zeros(len(all_lineVectors_array))
@@ -154,7 +158,8 @@ if __name__ == '__main__':
     listOfCentroids = []
     listOfCentroids_old = []
     for i in range(K):
-        C_i = np.random.randint(0, largestNorm, size = wordDim)
+        # C_i = np.random.randint(0, largestNorm, size = wordDim) --> 7/14/2020: suspected that centroids may be starting out too big
+        C_i = np.random.rand(wordDim) * max(largestVector)
         listOfCentroids.append(C_i)
         listOfCentroids_old.append(np.zeros(wordDim))
 
@@ -170,6 +175,8 @@ if __name__ == '__main__':
     # loop will run till the error becomes zero
     while error != 0:
 
+        print('\n ~ ', loopTracker ,': Converging to better centroid values! ~')
+
         # Assigning each value to its closest cluster
         for i in range(len(all_lineVectors_array)):
             
@@ -184,31 +191,60 @@ if __name__ == '__main__':
 
         # Storing the old centroid values
         Centroids_old = deepcopy(Centroids)
-        
-        print('\n\n')
-        
+       
         # Finding the new centroids by taking the average value
         for i in range(K):
             points_ithCluster = [all_lineVectors_array[j] for j in range(len(all_lineVectors_array)) if listOfClusterLabels[j] == i]
-            print('Centroid', i+1, "has", len(points_ithCluster), "many points in it.") # debugging line
+            print('Centroid', i+1, "has", len(points_ithCluster), "many points in it.")
+
+            # momentary fix. TODO: find out how to prevent either (a): a cluster ever having 0 points in it, or (b): a cluster having 0 points in it causing an infinite loop.
+            if len(points_ithCluster) == 0:
+                Centroids = Centroids_old
+                break
+
             Centroids[i] = np.mean(points_ithCluster, axis=0)
-            print('Centroid', i+1, 'is being relocated from being', np.linalg.norm(Centroids_old,axis=1)[i], 'far away, to being', np.linalg.norm(np.mean(points_ithCluster, axis=0)),'far away.') # debugging line
+            print('             -> relocating from being', np.linalg.norm(Centroids_old,axis=1)[i], 'far away, to being', np.linalg.norm(np.mean(points_ithCluster, axis=0)),'far away.') # debugging line
         
+        # calculating convergence
         error = dist(Centroids, Centroids_old, None)
         loopTracker += 1
-        print('\n ~ ', loopTracker ,': Converging to better centroid values! ~')
 
 
-    # debugging statements: printing largest norm in dataset vs. norms of each centroid.
+    print('\n ~ ', loopTracker ,': CONVERGENCE COMPLETED! ~')
+
+
+    # Format the vocabulary for use in the distance function
+    ids = [x for x in nlp.vocab.vectors.keys()]
+    vectors = [nlp.vocab.vectors[x] for x in ids]
+    vectors = np.array(vectors)
+
+    # debugging statements + find the closest word to each centroid
     print('\n   ------------------------------------------------------------\nThe line vector with the largest norm has norm:', largestNorm)
     for i in range(K):
         print('     Norm of Centroid',i+1,':', np.linalg.norm(Centroids,axis=1)[i])
+         
+        closest_index = (1 - distance.cdist(np.array([Centroids[i]]), vectors, metric='cosine')).argmax()
+        word_id = ids[closest_index]
+        output_word = nlp.vocab[word_id].text # output_word is identical, or very close, to the input word (taken from: https://stackoverflow.com/questions/54717449/mapping-word-vector-to-the-most-similar-closest-word-using-spacy)
+
+        print('          *-->', output_word,'<--*')
+
 
     stop_step2 = timeit.default_timer()
-    print('\nTime Elapsed While K-Clustering (STEP 2) : ', stop_step2 - start_step2,'sec') # TODO: investigate warning continually being spit out by machine.
+    print('\nTime Elapsed While K-Clustering (STEP 2) : ', stop_step2 - start_step2,'sec')
 
 
 
 # stops the timer
 stop = timeit.default_timer()
 print('\nTotal Time Elapsed: ', stop - start,'sec')  
+
+
+
+
+# 1) make excel file with each line of poetry (rows) allotted to a certain cluster (column)
+# 2) given coordinates of centroids: find the words that potentially share their coordinates
+    # 2a) figure out why everything breaks when a cluster has no words attached to it
+# 3) optimize for K
+    # 3a) make associated plots
+# 4) try out a different algorithm...?
