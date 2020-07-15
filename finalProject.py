@@ -120,12 +120,13 @@ if __name__ == '__main__':
         if lineTracker % checker == 0:
             print('\n ~ Only', maxLines - lineTracker, 'lines left! ~')
     
-    print('\nWriting down all the lines thrown away...')
-
-    with open('lines_garbage.csv', mode='w') as line_garbage:
-        lineGarbage_writer = csv.writer(line_garbage, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        for line in linesThrownAway:
-            lineGarbage_writer.writerow([line])
+    # if lines were thrown away in the tokenization process, let's see what they look like
+    if len(linesThrownAway) != 0:
+        print('\nWriting down all the lines thrown away...')
+        with open('lines_garbage.csv', mode='w') as line_garbage:
+            lineGarbage_writer = csv.writer(line_garbage, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            for line in linesThrownAway:
+                lineGarbage_writer.writerow([line])
 
     all_lineVectors_array = np.array(all_lineVectors)
 
@@ -197,10 +198,9 @@ if __name__ == '__main__':
             points_ithCluster = [all_lineVectors_array[j] for j in range(len(all_lineVectors_array)) if listOfClusterLabels[j] == i]
             print('Centroid', i+1, "has", len(points_ithCluster), "many points in it.")
 
-            # momentary fix. TODO: find out how to prevent either (a): a cluster ever having 0 points in it, or (b): a cluster having 0 points in it causing an infinite loop.
+            # don't attempt to calculate the a new centroid point for an old centroid with no points in it
             if len(points_ithCluster) == 0:
-                Centroids = Centroids_old
-                break
+                continue
 
             Centroids[i] = np.mean(points_ithCluster, axis=0)
             print('             -> relocating from being', np.linalg.norm(Centroids_old,axis=1)[i], 'far away, to being', np.linalg.norm(np.mean(points_ithCluster, axis=0)),'far away.') # debugging line
@@ -211,6 +211,15 @@ if __name__ == '__main__':
 
 
     print('\n ~ ', loopTracker ,': CONVERGENCE COMPLETED! ~')
+
+
+    # TODO: write the .csv file containing a sample of, say, 50 random lines (rows) in K columns
+    # for i in range(K):
+    #     lines_ithCluster = []
+    #     with open('clustered_lines.csv', mode='w') as clustered_lines:
+    #         clusteredLines_writer = csv.writer(clustered_lines, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    #         for line in linesThrownAway:
+    #             lineGarbage_writer.writerow([line])
 
 
     # Format the vocabulary for use in the distance function
@@ -248,3 +257,5 @@ print('\nTotal Time Elapsed: ', stop - start,'sec')
 # 3) optimize for K
     # 3a) make associated plots
 # 4) try out a different algorithm...?
+
+# another possible issue: we are assigning data points to be under a certain cluster if they are "closest" to that cluster via l2 norm. But "closest" here does not mean "most similar in meaning"! This would require cosine metric and NOT l2 norm!
