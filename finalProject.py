@@ -5,7 +5,6 @@ start = timeit.default_timer()
 # for natural language processing things (i.e. word2Vec)
 import spacy
 nlp = spacy.load("en_core_web_lg") # sm / md / lg refers to size of the modules; lg [788 MB] vs sm [10 MB] will be accurate, but loads a lot slower
-wordDim = 300    # all vector representations of words in spacy vocabulary are of dimension 300
 
 # for mathy operations
 import math 
@@ -20,6 +19,13 @@ from copy import deepcopy
 
 # used to write and read .csv files
 import csv
+
+
+# GLOBAL PARAMETERS
+wordDim = 300    # all vector representations of words in spacy vocabulary are of dimension 300
+maxLines = 5000 # 500,000 for the sake of minimum project requirement (otherwise loop takes forever)
+checker = 1000 # have the comp holler back every 'checker' amount of lines tokenized
+K = 3 # number of clusters in K-means algorithm
 
 
 
@@ -67,7 +73,7 @@ if __name__ == '__main__':
     """ the k-clustering algorithm """
     
     # ============= STEP 0: LOADING DATA ================= #
-    # ~30 - 45 sec.
+    # ~16 sec.
 
     start_step0 = timeit.default_timer()
 
@@ -85,8 +91,8 @@ if __name__ == '__main__':
 
 
     # ============= STEP 1: DATA -> VECTORS ================= #
-    # ~2 hrs...(for the 50,000 minimum)
-    # ~1 - 1.5 min...(for 5000 lines)
+    # ~1 hr 45 min...(for the 50,000 minimum)
+    # ~40 sec...(for 5000 lines)
 
     start_step1 = timeit.default_timer()
 
@@ -95,8 +101,6 @@ if __name__ == '__main__':
 
     print('\n\n==> Converting list of poetry lines to list of vectors...')
     lineTracker = 0 # communicates how many lines have been vectorized
-    maxLines = 1000 # 500,000 for the sake of minimum project requirement (otherwise loop takes forever)
-    checker = 200 # have the comp holler back every 'checker' amount of lines tokenized
 
     for poetryLine in all_poetryLines[:maxLines]: 
 
@@ -135,7 +139,7 @@ if __name__ == '__main__':
 
 
     # ============= STEP 2: K-CLUSTERING ================= #
-    # ? sec.
+    # ~7 min (for 50,000 minimum)
 
     start_step2 = timeit.default_timer()
 
@@ -148,7 +152,6 @@ if __name__ == '__main__':
     
         
     # number of clusters
-    K = 3
     print('\n\n**INITIALIZING K =', K, 'CLUSTERS**\n\n')
 
     # initializing the "list" (array) of all the labels (clusters) corresponding to each vector (poetry lines)
@@ -200,6 +203,8 @@ if __name__ == '__main__':
 
             # don't attempt to calculate the a new centroid point for an old centroid with no points in it
             if len(points_ithCluster) == 0:
+                #Centroids[i] = np.random.rand(wordDim) * max(largestVector)
+                print('             -> not relocating its location.')
                 continue
 
             Centroids[i] = np.mean(points_ithCluster, axis=0)
@@ -208,6 +213,11 @@ if __name__ == '__main__':
         # calculating convergence
         error = dist(Centroids, Centroids_old, None)
         loopTracker += 1
+    
+        # debugging
+        if loopTracker > 100:
+            print(' ** ** ** !! RUH ROH !! ** ** **')
+            break
 
 
     print('\n ~ ', loopTracker ,': CONVERGENCE COMPLETED! ~')
@@ -227,16 +237,20 @@ if __name__ == '__main__':
     vectors = [nlp.vocab.vectors[x] for x in ids]
     vectors = np.array(vectors)
 
-    # debugging statements + find the closest word to each centroid
-    print('\n   ------------------------------------------------------------\nThe line vector with the largest norm has norm:', largestNorm)
-    for i in range(K):
-        print('     Norm of Centroid',i+1,':', np.linalg.norm(Centroids,axis=1)[i])
-         
-        closest_index = (1 - distance.cdist(np.array([Centroids[i]]), vectors, metric='cosine')).argmax()
-        word_id = ids[closest_index]
-        output_word = nlp.vocab[word_id].text # output_word is identical, or very close, to the input word (taken from: https://stackoverflow.com/questions/54717449/mapping-word-vector-to-the-most-similar-closest-word-using-spacy)
 
-        print('          *-->', output_word,'<--*')
+    # algorithm output
+    print('\n------------------------------------------------------------\n')
+
+    for i in range(K):
+        points_ithCluster = [all_lineVectors_array[j] for j in range(len(all_lineVectors_array)) if listOfClusterLabels[j] == i]
+        print('     Norm of Centroid',i+1,':', np.linalg.norm(Centroids,axis=1)[i])
+        print('     Clustered', len(points_ithCluster), 'lines of poetry.')
+        
+        if len(points_ithCluster) != 0:
+            closest_index = (1 - distance.cdist(np.array([Centroids[i]]), vectors, metric='cosine')).argmax()
+            word_id = ids[closest_index]
+            output_word = nlp.vocab[word_id].text 
+            print('          *-->', output_word,'<--*\n')
 
 
     stop_step2 = timeit.default_timer()
@@ -250,12 +264,19 @@ print('\nTotal Time Elapsed: ', stop - start,'sec')
 
 
 
+# TODO
 
-# 1) make excel file with each line of poetry (rows) allotted to a certain cluster (column)
-# 2) given coordinates of centroids: find the words that potentially share their coordinates
-    # 2a) figure out why everything breaks when a cluster has no words attached to it
-# 3) optimize for K
-    # 3a) make associated plots
-# 4) try out a different algorithm...?
+# 1) measure total variance of datapoints within each cluster and sum them
+    # 1a) do this a [pre-specified paramater] many times!
+    # 1b) store that total variance each time.
+    # 1c) after completing [pre-specified paramater] many runs, return the clustering attempt that minimized the total variance.
+    # 1d) perhaps we want to keep track of how many times a centroid clusters 0 total points. We must decide to either discard these runs entirely 
+        # or bias them in some way…
 
-# another possible issue: we are assigning data points to be under a certain cluster if they are "closest" to that cluster via l2 norm. But "closest" here does not mean "most similar in meaning"! This would require cosine metric and NOT l2 norm!
+# 2) optimize the K value
+    # 2a) make associated elbow plots
+
+# 3) duplicate the algorithm and have one measure cosine similarity distance and one measure l2 distance.
+    # 3a) do this many times over and come up with a way to assess whether one works "better" than the other
+
+# 4) make excel file with each line of poetry (rows) allotted to a certain cluster (column)
