@@ -17,6 +17,9 @@ import gzip, json
 # required to use 'deepcopy' command; taken from https://mubaris.com/posts/kmeans-clustering/
 from copy import deepcopy
 
+# used to write and read .csv files
+import csv
+
 
 
 def vec(s):
@@ -87,11 +90,12 @@ if __name__ == '__main__':
     start_step1 = timeit.default_timer()
 
     all_lineVectors = []
+    linesThrownAway = []
 
-    print('\n==> Converting list of poetry lines to list of vectors...')
+    print('\n\n==> Converting list of poetry lines to list of vectors...')
     lineTracker = 0 # communicates how many lines have been vectorized
-    maxLines = 5000 # 500,000 for the sake of minimum project requirement (otherwise loop takes forever)
-    checker = 1000 # have the comp holler back every 'checker' amount of lines tokenized
+    maxLines = 1000 # 500,000 for the sake of minimum project requirement (otherwise loop takes forever)
+    checker = 200 # have the comp holler back every 'checker' amount of lines tokenized
 
     for poetryLine in all_poetryLines[:maxLines]: 
 
@@ -99,11 +103,13 @@ if __name__ == '__main__':
         doc = nlp(poetryLine)
         
         for token in doc:
-            if token.is_alpha:
+            if (token.is_alpha & (not token.is_stop)):
                 wordVec = vec(token.text)
                 lineVectorization += [wordVec]
         
         if len(lineVectorization) == 0:
+            linesThrownAway += [poetryLine]
+            print("I GOT STUCK!!!!")
             continue
 
         lineVec = meanv(lineVectorization)
@@ -112,26 +118,33 @@ if __name__ == '__main__':
         lineTracker += 1
         if lineTracker % checker == 0:
             print('\n ~ Only', maxLines - lineTracker, 'lines left! ~')
+    
+    print('\nWriting down all the lines thrown away...')
+
+    with open('lines_garbage.csv', mode='w') as line_garbage:
+        lineGarbage_writer = csv.writer(line_garbage, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        for line in linesThrownAway:
+            lineGarbage_writer.writerow([line])
 
     all_lineVectors_array = np.array(all_lineVectors)
 
     stop_step1 = timeit.default_timer()
-    print('Time Elapsed While Converting Poetry Lines to Vectors (STEP 1) : ', stop_step1 - start_step1,'sec')  
+    print('\nTime Elapsed While Converting Poetry Lines to Vectors (STEP 1) : ', stop_step1 - start_step1,'sec')  
 
 
     # ============= STEP 2: K-CLUSTERING ================= #
-    # ~2 min. (@K = 3; 'md' spacy module; 5000 poetry lines)
-    # ~2 min. (@K = 6; 'md' spacy module; 5000 poetry lines)
+    # ? sec.
 
     start_step2 = timeit.default_timer()
 
-    print('\n==> Commencing K-clustering algorithm...')
+    print('\n\n==> Commencing K-clustering algorithm...')
 
     # calculating vector with largest norm and its norm
     largestVector, largestNorm = maxNorm(all_lineVectors)
         
     # number of clusters
-    K = 6
+    K = 3
+    print('\n**INITIALIZING K =', K, 'CLUSTERS**')
 
     # initializing the "list" (array) of all the labels (clusters) corresponding to each vector (poetry lines)
     listOfClusterLabels = np.zeros(len(all_lineVectors_array))
@@ -161,7 +174,7 @@ if __name__ == '__main__':
         for i in range(len(all_lineVectors_array)):
             
             # gives us an array where each member tells us how faraway the data point is from each centroid
-            distances = dist(all_lineVectors_array[i], Centroids) 
+            distances = dist(all_lineVectors_array[i], Centroids)
             
             # this tells us which cluster (0, ..., K) the vector (aka: the poetry line) corresponds to
             clusterLabel = np.argmin(distances)
@@ -171,20 +184,28 @@ if __name__ == '__main__':
 
         # Storing the old centroid values
         Centroids_old = deepcopy(Centroids)
-
+        
+        print('\n\n')
+        
         # Finding the new centroids by taking the average value
         for i in range(K):
             points_ithCluster = [all_lineVectors_array[j] for j in range(len(all_lineVectors_array)) if listOfClusterLabels[j] == i]
+            print('Centroid', i+1, "has", len(points_ithCluster), "many points in it.") # debugging line
             Centroids[i] = np.mean(points_ithCluster, axis=0)
+            print('Centroid', i+1, 'is being relocated from being', np.linalg.norm(Centroids_old,axis=1)[i], 'far away, to being', np.linalg.norm(np.mean(points_ithCluster, axis=0)),'far away.') # debugging line
         
         error = dist(Centroids, Centroids_old, None)
         loopTracker += 1
         print('\n ~ ', loopTracker ,': Converging to better centroid values! ~')
 
-    print(Centroids)
+
+    # debugging statements: printing largest norm in dataset vs. norms of each centroid.
+    print('\n   ------------------------------------------------------------\nThe line vector with the largest norm has norm:', largestNorm)
+    for i in range(K):
+        print('     Norm of Centroid',i+1,':', np.linalg.norm(Centroids,axis=1)[i])
 
     stop_step2 = timeit.default_timer()
-    print('\nTime Elapsed While K-Clustering (STEP 2) : ', stop_step2 - start_step2,'sec') 
+    print('\nTime Elapsed While K-Clustering (STEP 2) : ', stop_step2 - start_step2,'sec') # TODO: investigate warning continually being spit out by machine.
 
 
 
