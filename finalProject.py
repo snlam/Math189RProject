@@ -1,6 +1,5 @@
 # for timing our program
 import timeit
-start = timeit.default_timer()
 
 # for natural language processing things (i.e. word2Vec)
 import spacy
@@ -20,12 +19,14 @@ from copy import deepcopy
 # used to write and read .csv files
 import csv
 
+# for making plots
+import matplotlib.pyplot as plt
+from pylab import *
 
 # GLOBAL PARAMETERS
 wordDim = 300    # all vector representations of words in spacy vocabulary are of dimension 300
-maxLines = 5000 # 500,000 for the sake of minimum project requirement (otherwise loop takes forever)
-checker = 1000 # have the comp holler back every 'checker' amount of lines tokenized
-K = 3 # number of clusters in K-means algorithm
+maxLines = 1000 # 500,000 for the sake of minimum project requirement (otherwise loop takes forever)
+checker = 200 # have the comp holler back every 'checker' amount of lines tokenized
 
 
 
@@ -69,13 +70,15 @@ def maxNorm(vectors):
     return maxVector, maxNorm
 
 
-if __name__ == '__main__':
+def kMeansAlg(K):
     """ the k-clustering algorithm """
     
     # ============= STEP 0: LOADING DATA ================= #
     # ~16 sec.
 
-    start_step0 = timeit.default_timer()
+    #start_step0 = timeit.default_timer()
+
+    start_alg = timeit.default_timer()
 
     all_dataPoints = []
     
@@ -86,21 +89,21 @@ if __name__ == '__main__':
         
     all_poetryLines = [datapoint['s'] for datapoint in all_dataPoints]  # creates a list of just the poetry lines from the data points
 
-    stop_step0 = timeit.default_timer()
-    print('Time Elapsed While Loading Data (STEP 0): ', stop_step0 - start_step0,'sec') 
+    #stop_step0 = timeit.default_timer()
+    #print('Time Elapsed While Loading Data (STEP 0): ', stop_step0 - start_step0,'sec') 
 
 
     # ============= STEP 1: DATA -> VECTORS ================= #
     # ~1 hr 45 min...(for the 50,000 minimum)
     # ~40 sec...(for 5000 lines)
 
-    start_step1 = timeit.default_timer()
+    #start_step1 = timeit.default_timer()
 
     all_lineVectors = []
     linesThrownAway = []
 
-    print('\n\n==> Converting list of poetry lines to list of vectors...')
-    lineTracker = 0 # communicates how many lines have been vectorized
+    print('\n==> Converting list of poetry lines to list of vectors...')
+    # lineTracker = 0 # communicates how many lines have been vectorized
 
     for poetryLine in all_poetryLines[:maxLines]: 
 
@@ -114,36 +117,36 @@ if __name__ == '__main__':
         
         if len(lineVectorization) == 0:
             linesThrownAway += [poetryLine]
-            print("I GOT STUCK!!!!")
+            #print("I GOT STUCK!!!!")
             continue
 
         lineVec = meanv(lineVectorization)
         all_lineVectors.append(lineVec)
 
-        lineTracker += 1
-        if lineTracker % checker == 0:
-            print('\n ~ Only', maxLines - lineTracker, 'lines left! ~')
+        # lineTracker += 1
+        # if lineTracker % checker == 0:
+        #     print(' ~ Only', maxLines - lineTracker, 'lines left! ~')
     
     # if lines were thrown away in the tokenization process, let's see what they look like
-    if len(linesThrownAway) != 0:
-        print('\nWriting down all the lines thrown away...')
-        with open('lines_garbage.csv', mode='w') as line_garbage:
-            lineGarbage_writer = csv.writer(line_garbage, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            for line in linesThrownAway:
-                lineGarbage_writer.writerow([line])
+    # if len(linesThrownAway) != 0:
+    #     print('\nWriting down all the lines thrown away...')
+    #     with open('lines_garbage.csv', mode='w') as line_garbage:
+    #         lineGarbage_writer = csv.writer(line_garbage, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    #         for line in linesThrownAway:
+    #             lineGarbage_writer.writerow([line])
 
     all_lineVectors_array = np.array(all_lineVectors)
 
-    stop_step1 = timeit.default_timer()
-    print('\nTime Elapsed While Converting Poetry Lines to Vectors (STEP 1) : ', stop_step1 - start_step1,'sec')  
+    #stop_step1 = timeit.default_timer()
+    #print('\nTime Elapsed While Converting Poetry Lines to Vectors (STEP 1) : ', stop_step1 - start_step1,'sec')  
 
 
     # ============= STEP 2: K-CLUSTERING ================= #
     # ~7 min (for 50,000 minimum)
 
-    start_step2 = timeit.default_timer()
+    #start_step2 = timeit.default_timer()
 
-    print('\n\n==> Commencing K-clustering algorithm...')
+    print('\n==> Commencing K-clustering algorithm...')
 
 
     # calculating vector with largest norm and its associated norm
@@ -152,7 +155,7 @@ if __name__ == '__main__':
     
         
     # number of clusters
-    print('\n\n**INITIALIZING K =', K, 'CLUSTERS**\n\n')
+    #print('\n**INITIALIZING K =', K, 'CLUSTERS**\n\n')
 
     # initializing the "list" (array) of all the labels (clusters) corresponding to each vector (poetry lines)
     listOfClusterLabels = np.zeros(len(all_lineVectors_array))
@@ -179,7 +182,7 @@ if __name__ == '__main__':
     # loop will run till the error becomes zero
     while error != 0:
 
-        print('\n ~ ', loopTracker ,': Converging to better centroid values! ~')
+        #print('\n ~ ', loopTracker ,': Converging to better centroid values! ~')
 
         # Assigning each value to its closest cluster
         for i in range(len(all_lineVectors_array)):
@@ -195,32 +198,35 @@ if __name__ == '__main__':
 
         # Storing the old centroid values
         Centroids_old = deepcopy(Centroids)
-       
+      
         # Finding the new centroids by taking the average value
         for i in range(K):
             points_ithCluster = [all_lineVectors_array[j] for j in range(len(all_lineVectors_array)) if listOfClusterLabels[j] == i]
-            print('Centroid', i+1, "has", len(points_ithCluster), "many points in it.")
+            #print('Centroid', i+1, "has", len(points_ithCluster), "many points in it.")
 
             # don't attempt to calculate the a new centroid point for an old centroid with no points in it
             if len(points_ithCluster) == 0:
                 #Centroids[i] = np.random.rand(wordDim) * max(largestVector)
-                print('             -> not relocating its location.')
+                #print('             -> not relocating its location.')
                 continue
 
             Centroids[i] = np.mean(points_ithCluster, axis=0)
-            print('             -> relocating from being', np.linalg.norm(Centroids_old,axis=1)[i], 'far away, to being', np.linalg.norm(np.mean(points_ithCluster, axis=0)),'far away.') # debugging line
+            #print('             -> relocating from being', np.linalg.norm(Centroids_old,axis=1)[i], 'far away, to being', np.linalg.norm(np.mean(points_ithCluster, axis=0)),'far away.') # debugging line
         
+        # fixing centroids that don't have datapoints in them
+
+
         # calculating convergence
         error = dist(Centroids, Centroids_old, None)
         loopTracker += 1
     
         # debugging
-        if loopTracker > 100:
+        if loopTracker > 300:
             print(' ** ** ** !! RUH ROH !! ** ** **')
             break
 
 
-    print('\n ~ ', loopTracker ,': CONVERGENCE COMPLETED! ~')
+    #print('\n ~ ', loopTracker ,': CONVERGENCE COMPLETED! ~')
 
 
     # TODO: write the .csv file containing a sample of, say, 50 random lines (rows) in K columns
@@ -239,29 +245,128 @@ if __name__ == '__main__':
 
 
     # algorithm output
-    print('\n------------------------------------------------------------\n')
-
+    #print('\n------------------------------------------------------------\n')
+    #print('\n------------------------------\n')
+    print('\n==> Calculating algorithm outputs...')
+ 
+    totalVariance = 0
+    listOfOutputs = []
     for i in range(K):
         points_ithCluster = [all_lineVectors_array[j] for j in range(len(all_lineVectors_array)) if listOfClusterLabels[j] == i]
-        print('     Norm of Centroid',i+1,':', np.linalg.norm(Centroids,axis=1)[i])
-        print('     Clustered', len(points_ithCluster), 'lines of poetry.')
+        # print('     Norm of Centroid',i+1,':', np.linalg.norm(Centroids,axis=1)[i])
+        # print('     Clustered', len(points_ithCluster), 'lines of poetry.')
         
-        if len(points_ithCluster) != 0:
+        if len(points_ithCluster) == 0:
+            output_word = 0
+            # print('\n')
+
+        else:
             closest_index = (1 - distance.cdist(np.array([Centroids[i]]), vectors, metric='cosine')).argmax()
             word_id = ids[closest_index]
             output_word = nlp.vocab[word_id].text 
-            print('          *-->', output_word,'<--*\n')
+            # print('          *-->', output_word,'<--*\n')
+
+            # also calculate the variance only when there are points in the cluster
+            var_ithCluster = np.var(np.array(points_ithCluster))
+            totalVariance += var_ithCluster
+        
+        # in order: norm of ith cluster , number of poetry lines in ith cluster, the word corresponding to the ith centroid (list of K 3-item sized tuples)
+        listOfOutputs.append((np.linalg.norm(Centroids,axis=1)[i], len(points_ithCluster), output_word))
+            
+
+    #stop_step2 = timeit.default_timer()
+    #print('\nTime Elapsed While K-Clustering (STEP 2) : ', stop_step2 - start_step2,'sec')
 
 
-    stop_step2 = timeit.default_timer()
-    print('\nTime Elapsed While K-Clustering (STEP 2) : ', stop_step2 - start_step2,'sec')
+    # stops the timer
+    stop_alg = timeit.default_timer()
+    time = stop_alg - start_alg
+    #print('\nTotal Time Elapsed: ', stop - start,'sec')  
+
+
+    return totalVariance, listOfOutputs, time
 
 
 
-# stops the timer
-stop = timeit.default_timer()
-print('\nTotal Time Elapsed: ', stop - start,'sec')  
 
+
+if __name__ == '__main__':
+
+    start = timeit.default_timer()
+
+    # the LARGEST K value being tested
+    largestK = 3
+
+    # and for each K value, run THIS many times
+    N = 10
+
+    listOfBestVariances = []
+    for K in range(1,largestK+1):
+        # collecting return values of each run
+        totalVarianceList = []
+        listOf_listOfOutputs = []
+        listOfTimes = []
+        for i in range(N):
+            totalVariance, listOfOutputs, time = kMeansAlg(K)
+            totalVarianceList += [totalVariance]
+            listOf_listOfOutputs += [listOfOutputs]
+            listOfTimes += [time]
+
+        # finding optimal clustering attempt
+        minVar = min(totalVarianceList)
+        listOfBestVariances += minVar
+        index_minVar = totalVarianceList.index(minVar)
+        minVar_listOfOutputs = listOf_listOfOutputs[index_minVar] # a list of K 3-item tuples
+
+        print('\n------------------------------------------------------------')
+
+        # record of info from all clustering attempts
+        print('~~K =',K,'...\n')
+        for i in range(N):
+            print('Attempt', i+1,':')
+            print('    Total Variance:', totalVarianceList[i]) 
+            print('    List of Outputs:')
+            for j in range(K):
+                print('        ',j+1,':', listOf_listOfOutputs[i][j])
+            print('    Time Elapsed:', listOfTimes[i],'sec\n')
+
+        print('------------------------------------------------------------\n')
+
+        # the important stuff
+        print('K =', K, 'BEST CLUSTERING ATTEMPT:  \n')
+
+        for i in range(K):
+            info_ithCentroid = minVar_listOfOutputs[i]
+            print('     Norm of Centroid',i+1,':', info_ithCentroid[0])
+            print('     Clustered', info_ithCentroid[1], 'lines of poetry.')
+            
+            if info_ithCentroid[2] == 0:
+                print('\n')
+                continue
+
+            else:
+                print('          *-->', info_ithCentroid[2],'<--*\n')
+
+    
+    # making the plots
+    fig = plt.figure()
+    ax = fig.add_axes([0,0,1,1])
+    kvalues = list(range(1,largestK+1))
+    ax.bar(listOfBestVariances)
+
+    plot(kvalues, listofVBestVariances)
+    xlabel('K-value')
+    ylabel('Total Variance within all Clusters')
+    title('K-value vs. Total Cluster Variance')
+    grid(True)
+
+    plot.show()
+
+
+    stop = timeit.default_timer()
+    print('Total Time Elapsed: ', stop - start,'sec')  
+
+    
 
 
 # TODO
@@ -280,3 +385,5 @@ print('\nTotal Time Elapsed: ', stop - start,'sec')
     # 3a) do this many times over and come up with a way to assess whether one works "better" than the other
 
 # 4) make excel file with each line of poetry (rows) allotted to a certain cluster (column)
+
+# 5) sentiment analysis: if we give the machine a line of poetry, can the machine identify whether that line is evoking happy/sad/whatever feelings?
